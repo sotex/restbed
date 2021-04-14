@@ -83,9 +83,10 @@ namespace restbed
     
     bool Uri::is_valid( const string& value )
     {
-        static const regex pattern( "^[a-zA-Z][a-zA-Z0-9+\\-.]*://(([a-zA-Z0-9\\-._~%!$&'()*+,;=]+)(:([a-zA-Z0-9\\-._~%!$&'()*+,;=]+))?@)?([a-zA-Z0-9\\-._~%!$&'()*+,;=:\\[\\]]*(:[0-9]+)?)?[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/]+(\\?[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/]*)?(#[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/?]*)?$" );
+        // static const regex pattern( "^[a-zA-Z][a-zA-Z0-9+\\-.]*://(([a-zA-Z0-9\\-._~%!$&'()*+,;=]+)(:([a-zA-Z0-9\\-._~%!$&'()*+,;=]+))?@)?([a-zA-Z0-9\\-._~%!$&'()*+,;=:\\[\\]]*(:[0-9]+)?)?[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/]+(\\?[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/]*)?(#[a-zA-Z0-9\\-._~%!$&'()*+,;=:@/?]*)?$" );
         
-        return regex_match( value, pattern );
+        // return regex_match( value, pattern );
+        return value.find_first_of("://") != string::npos;
     }
     
     Uri Uri::parse( const string& value )

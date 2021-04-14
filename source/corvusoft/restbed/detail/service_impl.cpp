@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <functional>
+#include <vector>
 
 //Project Includes
 #include "corvusoft/restbed/uri.hpp"
@@ -64,6 +65,8 @@ using std::current_exception;
 using std::rethrow_exception;
 using std::chrono::steady_clock;
 using std::regex_constants::icase;
+using std::sregex_token_iterator;
+using std::vector;
 
 //Project Namespaces
 
@@ -698,23 +701,28 @@ namespace restbed
         
         const map< string, string > ServiceImpl::parse_request_line( istream& stream )
         {
-            smatch matches;
-            static const regex pattern( "^([0-9a-zA-Z]*) ([a-zA-Z0-9:@_~!,;=#%&'\\-\\.\\/\\?\\$\\(\\)\\*\\+]+) (HTTP\\/[0-9]\\.[0-9])\\s*$" );
+            static const regex re_delimiter{" +"};
             string data = "";
             getline( stream, data );
             
-            if ( not regex_match( data, matches, pattern ) or matches.size( ) not_eq 4 )
+            auto matches = vector< string > {
+                        sregex_token_iterator( data.begin() , data.end() , re_delimiter , -1 ),
+                        sregex_token_iterator() };
+
+            if ( matches.size( ) != 3 || matches[2].find_first_of( '/' ) == string::npos )
             {
                 throw runtime_error( "Your client has issued a malformed or illegal request status line. That’s all we know." );
             }
-            
-            const string protocol = matches[ 3 ].str( );
-            const auto delimiter = protocol.find_first_of( "/" );
-            
+
+            string method = move( matches[ 0 ] );
+            string path = move( matches[ 1 ] );
+            string protocol = move( matches[ 2 ] );
+            const auto delimiter = protocol.find( '/' );
+
             return map< string, string >
             {
-                { "path", matches[ 2 ].str( ) },
-                { "method", matches[ 1 ].str( ) },
+                { "path", path },
+                { "method", method },
                 { "version", protocol.substr( delimiter + 1 ) },
                 { "protocol", protocol.substr( 0, delimiter ) }
             };
@@ -754,13 +762,28 @@ namespace restbed
             try
             {
                 const auto items = parse_request_line( stream );
-                const auto uri = Uri::parse( "http://localhost" + items.at( "path" ) );
+
+                // const auto uri = Uri::parse( "http://localhost" + items.at( "path" ) );
+                const string uri = move( items.at( "path" ) );
+                const auto delimiter = uri.find_first_of( "?#" );
+                multimap< string, string > parameters;
+                if ( delimiter != string::npos ) {
+                    auto query = String::split( uri.substr( delimiter+1 ), '&' );
+                    for ( auto parameter : query )
+                    {
+                        auto index = parameter.find_first_of( '=' );
+                        auto name = Uri::decode_parameter( parameter.substr( 0, index ) );
+                        auto value = Uri::decode_parameter( parameter.substr( index + 1, parameter.length( ) ) );
+                        
+                        parameters.insert( make_pair( name, value ) );
+                    }
+                }
 
                 session->m_pimpl->m_request->m_pimpl->m_body.clear( );
-                session->m_pimpl->m_request->m_pimpl->m_path = Uri::decode( uri.get_path( ) );
+                session->m_pimpl->m_request->m_pimpl->m_path = Uri::decode( uri.substr( 0 , delimiter ) );
                 session->m_pimpl->m_request->m_pimpl->m_method = items.at( "method" );
                 session->m_pimpl->m_request->m_pimpl->m_headers = parse_request_headers( stream );
-                session->m_pimpl->m_request->m_pimpl->m_query_parameters = uri.get_query_parameters( );
+                session->m_pimpl->m_request->m_pimpl->m_query_parameters = parameters;
                 
                 char* locale = strdup( setlocale( LC_NUMERIC, nullptr ) );
                 setlocale( LC_NUMERIC, "C" );
